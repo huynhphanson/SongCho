@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<meta name="description" content="">
+	<meta name="author" content="">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+	<link rel="icon" href="../resources//logo/ts_logo.png">
+	<title>Sông Chò</title>
+
+	<link rel="stylesheet" type="text/css" href="../build/potree/potree.css">
+	<link rel="stylesheet" type="text/css" href="../libs/jquery-ui/jquery-ui.min.css">
+	<link rel="stylesheet" type="text/css" href="../libs/openlayers3/ol.css">
+	<link rel="stylesheet" type="text/css" href="../libs/spectrum/spectrum.css">
+	<link rel="stylesheet" type="text/css" href="../libs/jstree/themes/mixed/style.css">
+	<link rel="stylesheet" type="text/css" href="../libs/Cesium/Widgets/CesiumWidget/CesiumWidget.css">
+</head>
+
+<body>
+	<script src="../libs/jquery/jquery-3.1.1.min.js"></script>
+	<script src="../libs/spectrum/spectrum.js"></script>
+	<script src="../libs/jquery-ui/jquery-ui.min.js"></script>
+	<script src="../libs/other/BinaryHeap.js"></script>
+	<script src="../libs/tween/tween.min.js"></script>
+	<script src="../libs/d3/d3.js"></script>
+	<script src="../libs/proj4/proj4.js"></script>
+	<script src="../libs/openlayers3/ol.js"></script>
+	<script src="../libs/i18next/i18next.js"></script>
+	<script src="../libs/jstree/jstree.js"></script>
+	<script src="../build/potree/potree.js"></script>
+	<script src="../libs/plasio/js/laslaz.js"></script>
+	<script src="../libs/shapefile/shapefile.js"></script>
+	<script src="../libs/three.js/build/three.min.js"></script>
+	<script src="../libs/Cesium/Cesium.js"></script>
+	
+	<!-- INCLUDE ADDITIONAL DEPENDENCIES HERE -->
+	<!-- INCLUDE SETTINGS HERE -->
+	
+	<div class="potree_container" style="position: absolute; width: 100%; height: 100%; left: 0px; top: 0px; ">
+		<div id="potree_render_area" style="background-image: url('../build/potree/resources/images/background.jpg');">
+			<div id="cesiumContainer" style="position: absolute; width: 100%; height: 100%; background-color:rgb(11, 128, 0)"></div>
+		</div>
+		<div id="potree_sidebar_container"> </div>
+	</div>
+	
+	<script type="module">
+	
+		// import IFCLoader.js OBJLoader
+		import { IFCLoader } from '../libs/three.js/extra/IFCLoader.js';
+		import { OBJLoader } from '../libs/three.js/loaders/OBJLoader.js';
+
+
+		//--------------------------------------
+		// load CesiumView
+		window.cesiumViewer = new Cesium.Viewer('cesiumContainer', {
+			useDefaultRenderLoop: false,
+			animation: false,
+			baseLayerPicker : false,
+			fullscreenButton: false, 
+			geocoder: false,
+			homeButton: false,
+			infoBox: false,
+			sceneModePicker: false,
+			selectionIndicator: false,
+			timeline: false,
+			navigationHelpButton: false,
+			baseLayerPicker: false,
+			imageryProvider : Cesium.createOpenStreetMapImageryProvider({url : 'https://a.tile.openstreetmap.org/'}),
+			terrainShadows: Cesium.ShadowMode.DISABLED,
+		});
+
+		let cp = new Cesium.Cartesian3(1354835.00, 601261.00, 4660771.704035539);
+		cesiumViewer.camera.setView({
+			destination : cp,
+			orientation: {
+				heading : 10, 
+				pitch : -Cesium.Math.PI_OVER_TWO * 0.5, 
+				roll : 0.0 
+			}
+		});
+		//--------------------------------------
+		
+		//--------------------------------------
+		// load PotreeView
+	
+		window.viewer = new Potree.Viewer(document.getElementById("potree_render_area"));
+		
+		viewer.setEDLEnabled(false);
+		viewer.setFOV(60);
+		viewer.setPointBudget(2_000_000);
+		viewer.loadSettingsFromURL();
+		viewer.setBackground(null);
+		
+		viewer.setDescription("");
+		
+		viewer.loadGUI(() => {
+			viewer.setLanguage('en');
+			$("#menu_appearance").next().show();
+			$("#menu_tools").next().show();
+			$("#menu_clipping").next().show();
+			viewer.toggleSidebar();
+		});
+		//--------------------------------------
+
+		//--------------------------------------
+		// scene
+		const scene = viewer.scene.scene;
+		const directionalLight1 = new THREE.DirectionalLight(0xffeeff, 0.8);
+		directionalLight1.position.set(1, 1, 1);
+		scene.add(directionalLight1);
+
+		const directionalLight2 = new THREE.DirectionalLight(0xffffff, 0.8);
+		directionalLight2.position.set(- 1, 0.5, - 1);
+		scene.add(directionalLight2);
+
+		const ambientLight = new THREE.AmbientLight(0xffffee, 0.25);
+		scene.add(ambientLight);
+		//--------------------------------------
+		
+		//--------------------------------------
+		// Load PointCloud
+		Potree.loadPointCloud("../pointclouds/songcho/metadata.json", "songcho", async e => {
+			let pointcloud = e.pointcloud;
+			let scene = viewer.scene;
+			let material = pointcloud.material;
+
+			scene.addPointCloud(pointcloud);
+
+			material.size = 1;
+			material.pointSizeType = Potree.PointSizeType.ADAPTIVE;
+			material.shape = Potree.PointShape.SQUARE;
+			
+			viewer.scene.view.position.set(576744.810, 1366447.339, 350);
+			viewer.scene.view.lookAt(577148.410, 1366743.823, 50);
+
+			
+			// He Toa Do --------------------------------------
+			proj4.defs('EPSG:9217',
+			'+proj=tmerc +lat_0=0 +lon_0=108.25 +k=0.9999 +x_0=500000 +y_0=0 +ellps=WGS84 +towgs84=-191.90441429,-39.30318279,-111.45032835,-0.00928836,0.01975479,-0.00427372,0.252906278 +units=m +no_defs +type=crs');
+			let pointcloudProjection = proj4("EPSG:9217");
+			let mapProjection = proj4.defs("WGS84");
+
+			window.toMap = proj4(pointcloudProjection, mapProjection);
+			window.toScene = proj4(mapProjection, pointcloudProjection);
+			//--------------------------------------
+
+			//--------------------------------------
+			{// Add shapeModel
+				const loader = new Potree.ShapefileLoader();
+
+				// group all shapefile scene nodes into this node
+				const shapeNode = new THREE.Object3D();
+				viewer.scene.scene.add(shapeNode);
+
+				// add mavong1.shp and change colors to red
+				const shpMavong1 = await loader.load("../resources/shapefiles/tuyen.shp");
+				shapeNode.add(shpMavong1.node);
+				shpMavong1.node.traverse(node => {
+					if(node.material){
+						node.material.color.set(0xe91f52);
+						node.position.z = 40;
+					}
+				});
+
+				
+				// this is necessary so that fat lines are correctly sized
+				viewer.addEventListener("update", () => {
+				const size = viewer.renderer.getSize(new THREE.Vector2());
+
+				shpMavong1.setResolution(size.width, size.height);
+				});
+			}//--------------------------------------
+			
+
+
+			//--------------------------------------
+			{// ANNOTATIONS
+				let aRoot = viewer.scene.annotations;
+
+				// Start Point
+				let startP = new Potree.Annotation({
+					title: "Đầu tuyến",
+					position: [576967.765, 1366607.059, 40],
+					cameraPosition: [576951.808, 1366595.002, 50],
+					cameraTarget: [577148.410, 1366743.823, 50],
+				});
+				aRoot.add(startP);
+
+				// End Point
+				let endP = new Potree.Annotation({
+					title: "Cuối tuyến",
+					position: [577240.745, 1366825.521, 40],
+					cameraPosition: [577255.310, 1366839.227, 50],
+					cameraTarget: [577148.410, 1366743.823, 50],
+				});
+				aRoot.add(endP);
+			}//--------------------------------------
+		});
+
+		{//------------------------------------Add Obj Model
+			// Model 1: GPMB_Purple
+			const objLoader = new OBJLoader();
+			objLoader.load('https://nxwt-my.sharepoint.com/:u:/g/personal/huynhphantuyson_nxwt_onmicrosoft_com/EU7486f_TAlEmj8LsTUWnaEBqNMGoITXWjHnXP3SikZ29g?e=ok4jmM', object => {
+				object.traverse(node => {
+					if(node.isMesh){
+						node.material.color.set(0xf6ace1);
+					}
+				})
+				scene.add(object);
+			}, function(xhr){
+					console.log(( xhr.loaded / xhr.total * 100) + '% loaded');
+			}, function(error){
+					console.log('An error happened');
+			});
+		}
+
+				
+		//-------------------------------------- RENDER SCENE
+		function loop(timestamp){
+			requestAnimationFrame(loop);
+
+			viewer.update(viewer.clock.getDelta(), timestamp);
+
+			viewer.render();
+
+			if(window.toMap !== undefined){
+
+				{
+					let camera = viewer.scene.getActiveCamera();
+
+					let pPos = new THREE.Vector3(0, 0, 0).applyMatrix4(camera.matrixWorld);
+					let pRight = new THREE.Vector3(600, 0, 0).applyMatrix4(camera.matrixWorld);
+					let pUp = new THREE.Vector3(0, 600, 0).applyMatrix4(camera.matrixWorld);
+					let pTarget = viewer.scene.view.getPivot();
+
+					let toCes = (pos) => {
+						let xy = [pos.x, pos.y];
+						let height = pos.z;
+						let deg = toMap.forward(xy);
+						let cPos = Cesium.Cartesian3.fromDegrees(...deg, height);
+
+						return cPos;
+					};
+
+					let cPos = toCes(pPos);
+					let cUpTarget = toCes(pUp);
+					let cTarget = toCes(pTarget);
+
+					let cDir = Cesium.Cartesian3.subtract(cTarget, cPos, new Cesium.Cartesian3());
+					let cUp = Cesium.Cartesian3.subtract(cUpTarget, cPos, new Cesium.Cartesian3());
+
+					cDir = Cesium.Cartesian3.normalize(cDir, new Cesium.Cartesian3());
+					cUp = Cesium.Cartesian3.normalize(cUp, new Cesium.Cartesian3());
+
+					cesiumViewer.camera.setView({
+						destination : cPos,
+						orientation : {
+							direction : cDir,
+							up : cUp
+						}
+					});
+					
+				}
+
+				let aspect = viewer.scene.getActiveCamera().aspect;
+				if(aspect < 1){
+					let fovy = Math.PI * (viewer.scene.getActiveCamera().fov / 180);
+					cesiumViewer.camera.frustum.fov = fovy;
+				}else{
+					let fovy = Math.PI * (viewer.scene.getActiveCamera().fov / 180);
+					let fovx = Math.atan(Math.tan(0.5 * fovy) * aspect) * 2
+					cesiumViewer.camera.frustum.fov = fovx;
+				}
+				
+			}
+
+			cesiumViewer.render();
+		}
+
+		requestAnimationFrame(loop);
+
+	</script>
+
+	<!-- Animation Path -->
+	<script type="module"> 
+	
+
+		const animation = new Potree.CameraAnimation(viewer);
+
+		const positions = [
+			[576744.810, 1366447.339, 350],
+			[577082.474, 1366516.408, 150],
+			[577459.609, 1366849.010, 100],
+			[577396.753, 1366979.734, 100],
+			[577223.072, 1367012.829, 200],
+			[576826.089, 1366696.774, 250],
+			[576744.810, 1366447.339, 350],
+		];
+
+		const targets = [
+			[577148.410, 1366743.823, 50],
+			[577148.410, 1366743.823, 50],
+			[577148.410, 1366743.823, 50],
+			[577148.410, 1366743.823, 50],
+			[577240.745, 1366825.521, 50],
+			[577148.410, 1366743.823, 50],
+			[577148.410, 1366743.823, 50],
+		];
+
+		for(let i = 0; i < positions.length; i++){
+			const cp = animation.createControlPoint();
+
+			cp.position.set(...positions[i]);
+			cp.target.set(...targets[i]);
+		}
+
+		viewer.scene.addCameraAnimation(animation);
+
+	</script>
+	
+	
+  </body>
+</html>
